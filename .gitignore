@@ -1,0 +1,20 @@
+# 생성 산출물 (mp4·pdf·png 등 대용량, 차시마다 재생성 가능)
+output/
+
+# 파이썬
+__pycache__/
+*.pyc
+.venv/
+
+# 자격증명
+.env
+storage_state.json
+
+# 교과서 원본 PDF (저작물)
+*.pdf
+!docs/**/*.pdf
+
+# 교과서·진도표 원본 (출판사 저작물). PDF 뿐 아니라 진도표 xlsx 도 올리지 않는다.
+# README 는 폴더 규칙을 적어 둔 것이라 올린다.
+textbook/*
+!textbook/README.md

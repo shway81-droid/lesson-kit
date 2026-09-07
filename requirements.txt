@@ -1,0 +1,11 @@
+# lesson-kit 실행에 필요한 것
+#
+# 버전은 이 스킬을 실제로 돌려 본 조합이다(2026-09-07 기준).
+# 올려도 대체로 동작하지만, NotebookLM CLI 는 서명이 자주 바뀌므로
+# 올린 뒤에는 `python -m pytest` 와 한 차시 실행으로 확인한다.
+
+notebooklm-py==0.4.1   # NotebookLM CLI. `notebooklm` 명령을 깐다
+PyMuPDF==1.27.2.3      # 교과서 PDF 자르기·텍스트 추출·PNG 렌더링 (import 이름은 fitz)
+playwright==1.59.0     # 형성평가 HTML → PDF. 설치 후 `playwright install chromium` 필요
+openpyxl==3.1.5        # 나이스 진도표(xlsx) 읽기
+pytest==9.0.3          # 테스트
