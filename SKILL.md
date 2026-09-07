@@ -13,6 +13,23 @@ description: 초등 교과서 전체 PDF에서 한 차시를 뽑아 동기유발
 이 파일은 절차다. 규칙마다 왜 그런지가 실측 근거와 함께 붙어 있으므로,
 규칙을 바꾸려면 그 근거를 먼저 읽는다.
 
+## 스크립트 경로
+
+**스크립트는 이 스킬 폴더 안에 있고, 작업은 교과서와 산출물이 있는 폴더에서 한다.**
+두 곳이 다르므로 스크립트는 스킬 폴더 경로로 부른다.
+
+```bash
+# 맥·리눅스
+KIT=~/.claude/skills/lesson-kit
+# 윈도우
+KIT="$USERPROFILE/.claude/skills/lesson-kit"
+
+PYTHONUTF8=1 python "$KIT/scripts/read_progress_plan.py" ...
+```
+
+아래 예시의 `scripts/...` 는 모두 `"$KIT/scripts/..."` 로 읽는다.
+`textbook/`, `output/` 같은 상대 경로는 **작업 폴더 기준**이다.
+
 ## 절대 원칙
 
 **수업 슬라이드는 교과서 차시 PDF 를 소스로 준다. 나머지 넷은 내가 쓴 원고를 소스로 준다.**
@@ -80,7 +97,7 @@ PYTHONUTF8=1 python scripts/read_progress_plan.py <진도표.xlsx> \
 어떤 차시가 있는지 파일 목록으로 바로 보인다.
 
 ```bash
-PYTHONUTF8=1 python scripts/split_semester.py <교과서.pdf> <진도표.xlsx>   --out textbook/<학기>/차시
+PYTHONUTF8=1 python scripts/split_semester.py <교과서.pdf> <진도표.xlsx> \n  --out textbook/<학기>/차시
 ```
 
 자르기 전에 **전 차시의 범위를 먼저 검사한다.** 40번째에서 범위를 벗어나면 앞의 39개는 이미
@@ -300,9 +317,9 @@ notebooklm download infographic output/<차시>/05_개념정리.png --notebook <
 문항과 정답은 `03_형성평가.md` 에 이미 확정되어 있다. 조판만 하면 되므로 원고를 바로 PDF 로 만든다.
 
 ```bash
-PYTHONUTF8=1 python scripts/quiz_to_html.py   output/<차시>/00_원고/03_형성평가.md output/<차시>/형성평가_인쇄용.html
-PYTHONUTF8=1 python scripts/html_to_pdf.py   output/<차시>/형성평가_인쇄용.html output/<차시>/04_형성평가_정답.pdf
-PYTHONUTF8=1 python scripts/html_to_pdf.py   output/<차시>/형성평가_인쇄용.html output/<차시>/04_형성평가_예비.pdf --hide-answers
+PYTHONUTF8=1 python scripts/quiz_to_html.py \n  output/<차시>/00_원고/03_형성평가.md output/<차시>/형성평가_인쇄용.html
+PYTHONUTF8=1 python scripts/html_to_pdf.py \n  output/<차시>/형성평가_인쇄용.html output/<차시>/04_형성평가_정답.pdf
+PYTHONUTF8=1 python scripts/html_to_pdf.py \n  output/<차시>/형성평가_인쇄용.html output/<차시>/04_형성평가_예비.pdf --hide-answers
 ```
 
 `quiz_to_html.py` 는 문항과 정답의 **개수가 다르면 멈춘다.** 어긋난 채로 조판하면 4번 문제에
