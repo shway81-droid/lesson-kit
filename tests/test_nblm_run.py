@@ -285,3 +285,118 @@ def test_force와_아티팩트_지정이_함께_붙는다(kind):
     cmd = build_download_command(kind, Path("out"), "nb", artifact_id="a1", force=True)
     assert "--force" in cmd
     assert cmd[cmd.index("-a") + 1] == "a1"
+
+
+# --json 모드에서 CLI 는 오류를 stdout 에 JSON 으로 낸다. stderr 는 비어 있다.
+# 실측 2026-09-09: 이것 때문에 notebooklm create 가 재시도 없이 죽었다.
+JSON_SSL_오류 = (
+    '{"error": true, "code": "ERROR", '
+    '"message": "[SSL: CERTIFICATE_VERIFY_FAILED] certificate key too weak"}'
+)
+JSON_빈_오류 = '{"error": true, "code": "ERROR", "message": ""}'
+
+
+class _결과:
+    def __init__(self, rc, out="", err=""):
+        self.returncode, self.stdout, self.stderr = rc, out, err
+
+
+def test_json_모드의_ssl_오류는_stdout에_있어도_재시도한다(monkeypatch):
+    """stderr 만 보면 재시도해야 할 오류를 즉시 실패로 던진다."""
+    import nblm_run
+
+    calls = []
+
+    def 가짜_run(cmd, **kwargs):
+        calls.append(cmd)
+        if len(calls) == 1:
+            return _결과(1, out=JSON_SSL_오류, err="")
+        return _결과(0, out="ok")
+
+    monkeypatch.setattr(nblm_run.subprocess, "run", 가짜_run)
+    monkeypatch.setattr(nblm_run.time, "sleep", lambda _: None)
+    assert nblm_run.run(["notebooklm", "create", "차시", "--json"]) == "ok"
+    assert len(calls) == 2
+
+
+def test_사유가_빈_오류도_재시도한다(monkeypatch):
+    """message 가 빈 'ERROR' 도 간헐 실패였다(실측: source add)."""
+    import nblm_run
+
+    calls = []
+
+    def 가짜_run(cmd, **kwargs):
+        calls.append(cmd)
+        if len(calls) < 3:
+            return _결과(1, out=JSON_빈_오류, err="")
+        return _결과(0, out="ok")
+
+    monkeypatch.setattr(nblm_run.subprocess, "run", 가짜_run)
+    monkeypatch.setattr(nblm_run.time, "sleep", lambda _: None)
+    assert nblm_run.run(["notebooklm", "source", "add", "a.md", "--json"]) == "ok"
+    assert len(calls) == 3
+
+
+def test_인자_오류는_stdout에_있어도_바로_던진다(monkeypatch):
+    """잘못된 인자를 세 번 보내도 결과는 같다. 재시도는 시간만 버린다."""
+    import nblm_run
+
+    calls = []
+
+    def 가짜_run(cmd, **kwargs):
+        calls.append(cmd)
+        return _결과(2, out="Usage: notebooklm download [OPTIONS]", err="")
+
+    monkeypatch.setattr(nblm_run.subprocess, "run", 가짜_run)
+    monkeypatch.setattr(nblm_run.time, "sleep", lambda _: None)
+    with pytest.raises(RuntimeError):
+        nblm_run.run(["notebooklm", "download", "--없는옵션"])
+    assert len(calls) == 1
+
+
+def test_오류_메시지에_stdout도_담는다(monkeypatch):
+    """stderr 만 담으면 --json 모드 실패는 빈 메시지가 되어 원인을 알 수 없다."""
+    import nblm_run
+
+    monkeypatch.setattr(
+        nblm_run.subprocess, "run", lambda cmd, **k: _결과(2, out="Usage: 어쩌고", err="")
+    )
+    with pytest.raises(RuntimeError, match="Usage"):
+        nblm_run.run(["notebooklm", "download"], retries=1)
+
+
+def test_조회가_흔들리면_missing이_아니라_unknown이다(monkeypatch):
+    """오류 JSON 에는 artifacts 키가 없다. 그걸 '목록에 없음' 으로 읽으면
+    멀쩡히 생성 중인 산출물을 즉시 실패로 버린다."""
+    import nblm_run
+
+    monkeypatch.setattr(nblm_run, "run", lambda *a, **k: JSON_SSL_오류)
+    assert nblm_run.artifact_status("a1", "nb") == "unknown"
+
+
+def test_정상_응답에_없으면_missing이다(monkeypatch):
+    """응답 형식이 멀쩡한데 목록에 없는 것은 진짜 없는 것이다."""
+    import nblm_run
+
+    monkeypatch.setattr(nblm_run, "run", lambda *a, **k: '{"artifacts": [{"id": "다른것", "status": "completed"}]}')
+    assert nblm_run.artifact_status("a1", "nb") == "missing"
+
+
+def test_조회가_한두_번_흔들려도_기다린다(monkeypatch):
+    """생성 직후에는 목록에 아직 안 뜬다. 한 번 못 봤다고 포기하면 45분짜리를 버린다."""
+    import nblm_run
+
+    상태들 = iter(["unknown", "missing", "pending", "completed"])
+    monkeypatch.setattr(nblm_run, "artifact_status", lambda *a: next(상태들))
+    monkeypatch.setattr(nblm_run.time, "sleep", lambda _: None)
+    assert nblm_run.wait_for_artifact("a1", "nb", interval_seconds=0) == "completed"
+
+
+def test_계속_목록에_없으면_결국_실패로_본다(monkeypatch):
+    """영영 안 나타나는 것을 끝없이 기다리지는 않는다."""
+    import nblm_run
+
+    monkeypatch.setattr(nblm_run, "artifact_status", lambda *a: "missing")
+    monkeypatch.setattr(nblm_run.time, "sleep", lambda _: None)
+    with pytest.raises(RuntimeError, match="missing"):
+        nblm_run.wait_for_artifact("a1", "nb", interval_seconds=0)
