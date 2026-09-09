@@ -11,8 +11,8 @@ from answer_overlay import (
     draw_answers,
     find_bracket_pairs,
     find_font,
-    pick_one_per_cell,
     render_preview,
+    sort_reading_order,
 )
 
 
@@ -76,34 +76,6 @@ def test_괄호가_아닌_세로획은_쌍이_되지_않는다(tmp_path):
     d.text((40, 60), "이 문장에는 빈칸이 없다 나비 미리", fill=(0, 0, 0), font=find_font(54))
     im.save(path)
     assert find_bracket_pairs(path) == []
-
-
-def test_읽기_순서로_돌려준다(배부본):
-    """3열 2행이면 왼쪽 위부터 오른쪽으로, 그다음 아랫줄."""
-    pairs = find_bracket_pairs(배부본)
-    골라낸 = pick_one_per_cell(pairs, rows=2, cols=3, size=Image.open(배부본).size)
-    assert len(골라낸) == 6
-    윗줄 = 골라낸[:3]
-    아랫줄 = 골라낸[3:]
-    assert [b.x0 for b in 윗줄] == sorted(b.x0 for b in 윗줄)
-    assert max(b.y for b in 윗줄) < min(b.y for b in 아랫줄)
-
-
-def test_한_칸에_후보가_없으면_None_으로_남긴다(tmp_path):
-    """조용히 다섯 개만 돌려주면 4번 자리에 5번 답이 찍힌다."""
-    path = _문항이미지(
-        tmp_path / "다섯개.png",
-        [
-            (0, 0, "1. 가", 8, "이다."),
-            (1, 0, "2. 나", 8, "이다."),
-            (2, 0, "3. 다", 8, "이다."),
-            (0, 1, "4. 라", 8, "이다."),
-            (1, 1, "5. 마", 8, "이다."),
-        ],
-    )
-    골라낸 = pick_one_per_cell(find_bracket_pairs(path), rows=2, cols=3, size=Image.open(path).size)
-    assert len(골라낸) == 6
-    assert 골라낸[5] is None
 
 
 def test_빈칸_수와_정답_수가_다르면_멈춘다(배부본, tmp_path):
@@ -229,3 +201,54 @@ def test_굵게_그린_괄호도_찾는다(tmp_path):
 
     pairs = find_bracket_pairs(path)
     assert len(pairs) == 6, f"굵은 괄호를 {len(pairs)}개만 찾았다"
+
+
+def _빈칸그림(path, 자리들, 크기=(2752, 1536)):
+    """(x, y) 자리마다 굵은 괄호 한 쌍을 그린다. 배부본 레이아웃을 흉내 낸다."""
+    im = Image.new("RGB", 크기, (255, 255, 255))
+    d = ImageDraw.Draw(im)
+    for x, y in 자리들:
+        d.arc([x, y, x + 52, y + 73], start=90, end=270, fill=(0, 0, 0), width=8)
+        d.arc([x + 200, y, x + 252, y + 73], start=270, end=90, fill=(0, 0, 0), width=8)
+    im.save(path)
+    return path
+
+
+def test_행_간격으로_읽기_순서를_세운다(tmp_path):
+    """3열 2행. 왼쪽 위부터 오른쪽으로, 그다음 아랫줄."""
+    자리 = [(400, 700), (1400, 760), (2300, 760), (100, 1380), (1150, 1380), (2260, 1380)]
+    path = _빈칸그림(tmp_path / "3x2.png", 자리)
+    순서 = sort_reading_order(find_bracket_pairs(path))
+    assert len(순서) == 6
+    assert [b.x0 for b in 순서[:3]] == sorted(b.x0 for b in 순서[:3])
+    assert max(b.y for b in 순서[:3]) < min(b.y for b in 순서[3:])
+
+
+def test_문항이_그림_아래에_있어도_행이_갈린다(tmp_path):
+    """실측 2026-09-09(10차시): 문항 텍스트가 그림 아래에 있어 윗줄 y 가 787~849 였다.
+
+    이미지를 위아래로 반 갈라 행을 정하면(경계 768) 여섯 칸이 전부 아랫행으로 몰려
+    셀마다 하나만 남고 세 개를 잃는다. 행은 간격으로 갈라야 한다.
+    """
+    자리 = [(400, 750), (1400, 812), (2300, 812), (100, 1420), (1150, 1420), (2260, 1420)]
+    path = _빈칸그림(tmp_path / "아래치우침.png", 자리)
+    순서 = sort_reading_order(find_bracket_pairs(path))
+    assert len(순서) == 6
+    assert len({round(b.y / 300) for b in 순서}) == 2, "두 행으로 갈려야 한다"
+
+
+def test_2열_3행도_읽기_순서가_맞는다(tmp_path):
+    """실측 2026-09-09(8차시): 배부본이 2열 3행으로 나왔다. 열 수를 미리 알 수 없다."""
+    자리 = [(300, 200), (1700, 400), (300, 760), (1600, 860), (200, 1330), (1700, 1330)]
+    path = _빈칸그림(tmp_path / "2x3.png", 자리)
+    순서 = sort_reading_order(find_bracket_pairs(path))
+    assert len(순서) == 6
+    ys = [b.y for b in 순서]
+    assert ys == sorted(ys) or all(ys[i] <= ys[i + 1] + 120 for i in range(5))
+
+
+def test_한_행만_있어도_왼쪽부터_센다(tmp_path):
+    자리 = [(200, 700), (1200, 700), (2200, 700)]
+    path = _빈칸그림(tmp_path / "한줄.png", 자리)
+    순서 = sort_reading_order(find_bracket_pairs(path))
+    assert [b.x0 for b in 순서] == sorted(b.x0 for b in 순서)
