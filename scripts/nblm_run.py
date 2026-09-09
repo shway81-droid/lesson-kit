@@ -112,43 +112,68 @@ def build_download_command(
 # 항상은 아니고 즉시 재시도하면 대부분 통과한다. 다운로드가 여기서 죽으면
 # 45분 걸린 생성물을 못 받는다. (실측: 인포그래픽 다운로드 1회차 실패, 2회차 성공)
 # `artifact wait` 는 같은 원인으로 "Connection failed calling LIST_ARTIFACTS" 를 낸다.
-# 이 문구에는 SSL 이 없어서 따로 넣는다.
 #
-# `RPC LIST_ARTIFACTS failed` 는 뒤에 사유가 안 붙고 빈 줄로 끝날 때가 있다(실측 2026-09-04).
-# 그러면 위 문구 어디에도 안 걸려 그대로 예외가 나고, 완료를 기다리던 생성물을 놓친다.
-# LIST_ARTIFACTS 는 폴링용 읽기 호출이라 재시도해도 부작용이 없다.
-# CREATE_ARTIFACT 는 넣지 않는다 — 레이트리밋이 이 이름으로 오므로 재시도가 한도만 더 태운다.
-RETRYABLE = (
-    "CERTIFICATE_VERIFY_FAILED",
-    "certificate key too weak",
-    "SSL",
-    "Connection failed",
-    "LIST_ARTIFACTS failed",
+# 예전에는 **재시도할 오류를 문구로 나열**했는데, 그 방식이 두 번 새어 나갔다.
+#   ① `RPC LIST_ARTIFACTS failed` 가 사유 없이 빈 줄로 끝나 목록에 안 걸렸다(2026-09-04).
+#   ② `--json` 을 붙이면 CLI 가 오류를 **stdout 에 JSON 으로** 내고 stderr 를 비운다.
+#      그래서 stderr 검사에 아예 안 걸렸다(2026-09-09: `notebooklm create` 가 재시도 없이 죽었다.
+#      실제 출력은 `{"error": true, "code": "ERROR", "message": "[SSL: ...key too weak]"}`).
+#      `message` 가 빈 `ERROR` 로만 오는 간헐 실패도 있었다(`source add`).
+#
+# 그래서 판정을 뒤집었다. **다시 보내도 결과가 같은 것만 즉시 포기하고, 나머지는 재시도한다.**
+# 알 수 없는 오류를 만나면 재시도가 기본값이어야 45분짜리 생성물을 잃지 않는다.
+#   - 인자 오류: 잘못된 옵션을 세 번 보내도 결과는 같다.
+#   - 레이트리밋: 재시도가 한도만 더 태운다. 5~10분 뒤 바깥에서 다시 요청한다.
+#     `CREATE_ARTIFACT` 실패는 사유가 안 붙어도 레이트리밋으로 본다 — `-v` 없이는
+#     구분이 안 되는데, 아니었을 때 한 번 더 안 보내는 손해보다 한도를 태우는 손해가 크다.
+즉시포기 = (
+    "Usage:",
+    "No such",
+    "Error: Invalid",
+    "RATE_LIMITED",
+    "rate limited",
+    "CREATE_ARTIFACT",
 )
 
 
 def run(cmd: list[str], retries: int = 3, wait_seconds: float = 15.0) -> str:
     """명령을 실행하고 stdout 을 돌려준다. 실패하면 예외를 던진다.
 
-    SSL 류 오류만 wait_seconds 간격으로 retries 번 다시 시도한다.
-    다른 오류는 바로 던진다 — 잘못된 인자를 세 번 보내도 결과는 같다.
+    간헐 실패는 wait_seconds 간격으로 retries 번 다시 시도한다.
+    인자 오류와 레이트리밋만 바로 던진다 — 다시 보내도 결과가 같다.
+
+    판정에 stdout 과 stderr 를 **함께** 본다. `--json` 모드에서는 오류가 stdout 으로
+    나오고 stderr 가 비어 있어서, stderr 만 보면 재시도해야 할 오류를 놓친다.
     """
     for attempt in range(1, retries + 1):
         result = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8")
         if result.returncode == 0:
             return result.stdout
-        retryable = any(marker in result.stderr for marker in RETRYABLE)
-        if not retryable or attempt == retries:
-            raise RuntimeError(f"{' '.join(cmd)}\n{result.stderr}")
+        출력 = (result.stdout or "") + (result.stderr or "")
+        if any(marker in 출력 for marker in 즉시포기) or attempt == retries:
+            raise RuntimeError(f"{' '.join(cmd)}\n{출력.strip()}")
         time.sleep(wait_seconds)
     raise AssertionError("unreachable")
 
 
 def artifact_status(artifact_id: str, notebook_id: str) -> str:
-    """아티팩트 하나의 현재 상태를 돌려준다. 목록에 없으면 'missing'."""
-    listing = json.loads(run(["notebooklm", "artifact", "list",
-                              "--notebook", notebook_id, "--json"]))
-    for artifact in listing.get("artifacts", []):
+    """아티팩트 하나의 현재 상태를 돌려준다.
+
+    응답이 목록 형태가 아니면 'unknown' — 조회가 흔들린 것이지 없는 게 아니다.
+    목록은 멀쩡한데 그 안에 없으면 'missing'.
+
+    이 둘을 가르지 않으면 오류 JSON(`{"error": true, ...}`)에 artifacts 키가 없다는
+    이유로 'missing' 이 되고, 호출부가 멀쩡히 생성 중인 산출물을 즉시 실패로 버린다
+    (실측 2026-09-09).
+    """
+    응답 = run(["notebooklm", "artifact", "list", "--notebook", notebook_id, "--json"])
+    try:
+        listing = json.loads(응답)
+    except json.JSONDecodeError:
+        return "unknown"
+    if not isinstance(listing, dict) or "artifacts" not in listing:
+        return "unknown"
+    for artifact in listing["artifacts"]:
         if artifact["id"] == artifact_id:
             return artifact["status"]
     return "missing"
@@ -169,6 +194,7 @@ def wait_for_artifact(
     """
     deadline = time.monotonic() + timeout_seconds
     last_error: Exception | None = None
+    안보인횟수 = 0
     while True:
         try:
             status = artifact_status(artifact_id, notebook_id)
@@ -181,8 +207,15 @@ def wait_for_artifact(
             status = "unknown"
         if status == "completed":
             return status
-        if status in ("failed", "error", "missing"):
+        if status in ("failed", "error"):
             raise RuntimeError(f"아티팩트가 완료되지 못했다: {artifact_id} ({status})")
+        # 생성 직후에는 목록에 아직 안 뜬다. 한 번 못 봤다고 포기하면 45분짜리를 버린다.
+        if status == "missing":
+            안보인횟수 += 1
+            if 안보인횟수 >= 3:
+                raise RuntimeError(f"아티팩트가 목록에 계속 없다: {artifact_id} (missing)")
+        else:
+            안보인횟수 = 0
         if time.monotonic() >= deadline:
             꼬리 = f" 마지막 조회 오류: {last_error}" if last_error else ""
             raise RuntimeError(

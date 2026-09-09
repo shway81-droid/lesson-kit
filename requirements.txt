@@ -8,4 +8,7 @@ notebooklm-py==0.4.1   # NotebookLM CLI. `notebooklm` 명령을 깐다
 PyMuPDF==1.27.2.3      # 교과서 PDF 자르기·텍스트 추출·PNG 렌더링 (import 이름은 fitz)
 playwright==1.59.0     # 형성평가 HTML → PDF. 설치 후 `playwright install chromium` 필요
 openpyxl==3.1.5        # 나이스 진도표(xlsx) 읽기
+Pillow==12.2.0         # 채점용 정답 오버레이. 배부본 PNG 를 읽고 그린다
+numpy==2.4.4           # 배부본에서 괄호를 찾을 때 픽셀 배열 처리
+scipy==1.18.0          # 괄호 후보를 잡는 연결 성분 분석 (ndimage.label)
 pytest==9.0.3          # 테스트
