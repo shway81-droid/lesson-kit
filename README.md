@@ -126,6 +126,7 @@ scripts/
   nblm_run.py               NotebookLM CLI 명령 조립·실행·재시도
   quiz_to_html.py           형성평가 원고 → 인쇄용 HTML
   html_to_pdf.py            HTML → PDF (정답 숨김 지원)
+  answer_overlay.py         배부본 PNG 의 빈칸에 정답을 얹어 채점용 만들기
   verify_output.py          원고 대조 (누락·지어낸 문장·낱말 중복)
   retry_infographic.py      레이트리밋이 풀릴 때까지 기다렸다 생성
 tests/                      위 스크립트의 테스트
