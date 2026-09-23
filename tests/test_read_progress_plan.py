@@ -118,3 +118,27 @@ def test_slug_은_정렬되고_경로에_쓸_수_있다():
     assert "고조선은" in slug
     for bad in ' /\\:*?"<>|':
         assert bad not in slug
+
+
+def test_한_줄에_여러_차시를_적은_진도표를_읽는다(tmp_path):
+    # 비상교육 5-2 진도표는 2차시 수업을 '4~5' 한 줄로 적는다. int() 로 읽으면 멈췄다.
+    from openpyxl import Workbook
+
+    path = tmp_path / "비상.xlsx"
+    wb = Workbook()
+    ws = wb.active
+    ws.append(HEADER)
+    ws.append([4, 5, 2, "사회", "1 유적과 유물로 살펴본 옛사람들의 생활", "소단원",
+               "고조선", "14~19", None, "4~5", "18", ""])
+    wb.save(path)
+
+    lesson = read_lessons(path)[0]
+    assert (lesson.lesson_no, lesson.lesson_last) == (4, 5)
+    assert lesson.unit_total == 18
+
+
+def test_단원_번호_뒤에_점이_없어도_읽는다():
+    # 천재는 '1. 유적과…', 비상은 '1 유적과…' 로 적는다
+    lesson = Lesson("1 유적과 유물로 살펴본 옛사람들의 생활", "소", "고조선", 14, 19, 4, 18)
+    assert lesson.unit_no == "1"
+    assert lesson.slug.startswith("1단원_04차시_")
