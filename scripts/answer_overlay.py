@@ -99,7 +99,10 @@ def _성분들(회색: np.ndarray):
         ys, xs = 조각
         h = ys.stop - ys.start
         w = xs.stop - xs.start
-        if not (30 <= h <= 110 and 3 <= w <= 34 and h >= 3.0 * w):
+        # 비율 하한이 3.0 이던 동안 굵게 그린 괄호를 통째로 놓쳤다
+        # (실측 2026-09-09, 8차시 백제: h=73 w=26 으로 비율 2.8). 굵기는 배부본 디자인이
+        # 정하므로 여유를 둔다. 2.5 로 낮춰도 다른 차시의 탐지 결과는 그대로였다.
+        if not (30 <= h <= 110 and 3 <= w <= 34 and h >= 2.5 * w):
             continue
         모양 = _괄호모양(회색[ys, xs] < 어두움)
         if 모양:
@@ -141,29 +144,28 @@ def find_bracket_pairs(png_path, 최소폭: int = 55, 최대폭: int = 700) -> l
     return 빈칸들
 
 
-def pick_one_per_cell(pairs: list[Blank], rows: int, cols: int, size) -> list[Blank | None]:
-    """이미지를 rows x cols 로 나누고 칸마다 빈칸 하나씩 골라 읽기 순서로 돌려준다.
+def sort_reading_order(pairs: list[Blank], 행간격: int = 200) -> list[Blank]:
+    """빈칸을 읽기 순서로 세운다 — 위 행부터, 행 안에서는 왼쪽부터.
 
-    칸에 후보가 없으면 그 자리를 None 으로 남긴다. 조용히 개수를 줄이면
-    4번 자리에 5번 답이 찍힌 채점용이 나오는데 아무도 모른다.
-    후보가 여럿이면 가장 좁은 것을 고른다 — 넓은 쪽은 앞 문장까지 삼킨 오탐이다.
+    행은 **y 간격이 크게 벌어지는 곳**에서 가른다. 이미지를 균등하게 나눠 행을 정하면
+    배부본 레이아웃에 따라 통째로 어긋난다. 실측 2026-09-09:
+
+    - 10차시는 문항 텍스트가 그림 **아래**에 있어 윗줄 y 가 787~849 였다. 이미지를 위아래로
+      반 가르면(경계 768) 여섯 칸이 전부 아랫행으로 몰려 셋을 잃었다.
+    - 8차시는 3열 2행이 아니라 **2열 3행**으로 나왔다. 열 수는 차시마다 다르다.
+
+    간격으로 가르면 열 수를 몰라도 되고 문항이 어디에 놓이든 상관없다.
     """
-    W, H = size
-    칸폭 = W / cols
-    칸높이 = H / rows
-    바구니: dict[tuple[int, int], list[Blank]] = {}
-    for b in pairs:
-        cx = (b.x0 + b.x1) / 2
-        열 = min(cols - 1, int(cx // 칸폭))
-        행 = min(rows - 1, int(b.y // 칸높이))
-        바구니.setdefault((행, 열), []).append(b)
-
-    골라낸: list[Blank | None] = []
-    for 행 in range(rows):
-        for 열 in range(cols):
-            후보 = 바구니.get((행, 열), [])
-            골라낸.append(min(후보, key=lambda b: b.x1 - b.x0) if 후보 else None)
-    return 골라낸
+    if not pairs:
+        return []
+    남은 = sorted(pairs, key=lambda b: b.y)
+    행들: list[list[Blank]] = [[남은[0]]]
+    for b in 남은[1:]:
+        if b.y - 행들[-1][-1].y > 행간격:
+            행들.append([b])
+        else:
+            행들[-1].append(b)
+    return [b for 행 in 행들 for b in sorted(행, key=lambda b: b.x0)]
 
 
 def _맞는크기(d: ImageDraw.ImageDraw, 글자: str, 폭: float) -> ImageFont.FreeTypeFont:
@@ -241,22 +243,21 @@ def main() -> None:
     parser.add_argument("--out", type=Path, help="채점용 산출 경로")
     parser.add_argument("--answers", help="정답을 쉼표로 이어 준다 (예: 고조선,비파형,8)")
     parser.add_argument("--blanks", help="탐지를 건너뛰고 좌표를 직접 준다 (x0:x1:y,...)")
-    parser.add_argument("--rows", type=int, default=2, help="문항 배치 행 수 (기본 2)")
-    parser.add_argument("--cols", type=int, default=3, help="문항 배치 열 수 (기본 3)")
+    parser.add_argument("--row-gap", type=int, default=200,
+                        help="이만큼 y 가 벌어지면 다음 행으로 본다 (기본 200)")
     args = parser.parse_args()
 
     if args.blanks:
         빈칸들 = _좌표읽기(args.blanks)
     else:
-        찾은것 = find_bracket_pairs(args.배부본)
+        찾은것 = sort_reading_order(find_bracket_pairs(args.배부본), args.row_gap)
         if args.preview:
             경로 = render_preview(args.배부본, 찾은것, args.preview)
             print(f"미리보기: {경로}  후보 {len(찾은것)}개")
             for i, b in enumerate(찾은것, 1):
                 print(f"  {i}: {b.x0}:{b.x1}:{b.y}  폭 {b.x1 - b.x0}")
             return
-        크기 = Image.open(args.배부본).size
-        빈칸들 = pick_one_per_cell(찾은것, args.rows, args.cols, 크기)
+        빈칸들 = 찾은것
 
     if args.preview:
         경로 = render_preview(args.배부본, [b for b in 빈칸들 if b], args.preview)

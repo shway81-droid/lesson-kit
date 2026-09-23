@@ -108,8 +108,9 @@ PYTHONUTF8=1 python scripts/find_standards.py --text "<차시 본문>" --subject
 
 새 출판사 교과서를 넣으면 두 가지를 확인한다.
 
-1. **쪽 번호 대응(`--offset`)** — 앞표지 장수가 책마다 다르다. `read_progress_plan.py --verify` 로
-   차시 첫 쪽을 찍어 제목과 맞는지 눈으로 본다.
+1. **쪽 번호 대응** — 앞표지·삽입 장·펼침면이 책마다 다르다. `page_map.py <교과서.pdf…>` 로
+   펼침면·삽입 장 개수를 보고, `read_progress_plan.py --verify` 로 차시 첫 쪽을 찍어 제목과
+   맞는지 눈으로 본다. 기본(`--offset auto`)은 장마다 인쇄된 쪽 번호로 찾는다.
 2. **차시 표식** — 진도표가 없을 때만 쓴다. 0건이 나오면 그 교과서의 표식을
    `split_lesson.py` 의 `LESSON_START_PATTERNS` 에 공백 없는 형태로 추가한다.
 
@@ -153,5 +154,5 @@ docs/superpowers/           설계 스펙과 구현 계획
 남겨 주면 좋겠다 — 특히 다음 셋이다.
 
 - 진도표 열 이름이 다른 출판사
-- `--offset` 이 1 이 아닌 교과서
+- 인쇄 쪽 번호로 지도를 못 만드는 교과서 (쪽 번호가 아래쪽에 없거나 텍스트 레이어가 없는 책)
 - 차시 표식이 0건인 교과서 (`LESSON_START_PATTERNS` 에 추가가 필요하다)
