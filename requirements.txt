@@ -11,4 +11,6 @@ openpyxl==3.1.5        # 나이스 진도표(xlsx) 읽기
 Pillow==12.2.0         # 채점용 정답 오버레이. 배부본 PNG 를 읽고 그린다
 numpy==2.4.4           # 배부본에서 괄호를 찾을 때 픽셀 배열 처리
 scipy==1.18.0          # 괄호 후보를 잡는 연결 성분 분석 (ndimage.label)
+python-pptx==1.0.2      # 수업 슬라이드 직접 조판(slide-design-kit) PPTX 출력
+beautifulsoup4==4.14.3  # slide-design-kit 변환기
 pytest==9.0.3          # 테스트

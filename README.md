@@ -9,7 +9,7 @@
 | 형성평가 문제지·정답지 | 차시 마무리 확인 |
 | 개념정리 | 정리·게시 |
 
-디자인은 NotebookLM 이 하고, **내용이 교과서와 같은지는 사람과 코드가 확인한다.**
+수업 슬라이드는 `slide-design-kit` 스킬로 교과서 문장과 그림을 그대로 넣어 직접 조판하고, 영상과 인포그래픽은 NotebookLM 이 디자인한다. **내용이 교과서와 같은지는 사람과 코드가 확인한다.**
 이 저장소의 절반은 그 확인 장치다. `SKILL.md` 가 전체 절차이고, 규칙마다 왜 그런지가
 실측 근거와 함께 적혀 있다.
 
@@ -32,6 +32,8 @@ playwright install chromium
 notebooklm login          # 브라우저가 열린다. 구글 계정으로 로그인
 notebooklm list           # 노트북 목록이 나오면 인증 성공
 ```
+
+수업 슬라이드 직접 조판에는 `slide-design-kit` 스킬(`~/.claude/skills/slide-design-kit`)과 Edge 또는 Chrome 이 필요하다. 파이썬 패키지는 requirements 에 함께 들어 있다(`python-pptx`·`beautifulsoup4`).
 
 **윈도우에서는 모든 파이썬 실행에 `PYTHONUTF8=1` 을 붙인다.** 안 붙이면 한글 파일명과
 출력이 깨진다.
@@ -81,7 +83,7 @@ PYTHONUTF8=1 python scripts/build_standards.py
 | 1 | 진도표에서 차시와 쪽 범위를 뽑아 교과서를 자른다 |
 | 2 | 성취기준 후보를 뽑는다 |
 | 3 | 원고 4개를 쓰고, 교과서에 없는 내용이 들어갔는지 검사한다 |
-| 4 | NotebookLM 이 4종을 만든다 |
+| 4 | 수업 슬라이드를 직접 조판하고(slide-design-kit), NotebookLM 이 영상·인포그래픽 3종을 만든다 |
 | 5 | 전수 대조하고 리포트를 남긴다 |
 
 결과는 `output/<차시>/` 에 쌓인다. 파일 이름 규칙은 `SKILL.md` 의 「산출물 이름 규칙」.
@@ -95,7 +97,7 @@ PYTHONUTF8=1 python scripts/build_standards.py
 하루 3회쯤, 인포그래픽은 6회쯤에서 막혔고 몇 시간 뒤 풀렸다. 한 차시에 인포그래픽을 두 번
 쓰므로 **하루 두세 차시**가 현실적인 한계다.
 
-**교과서 사진은 들어가지 않는다.** NotebookLM 이 소스의 이미지를 읽지도, 생성물에 넣지도
+**NotebookLM 결과물에는 교과서 사진이 들어가지 않는다.** 직접 조판한 수업 슬라이드에는 교과서 그림을 잘라 넣는다. NotebookLM 은 소스의 이미지를 읽지도, 생성물에 넣지도
 못한다. 자기 삽화로 대체한다. 그림 자체가 학습 자료인 차시는 교과서를 따로 띄운다.
 
 ## 다른 과목·학년으로 옮길 때
