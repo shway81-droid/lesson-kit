@@ -35,8 +35,8 @@ h1 .tag {
 }
 .answers .fill { visibility: visible; }
 .card .fig {
-  flex: none; align-self: center; width: 270px; height: 172px;
-  border-radius: 16px; overflow: hidden; margin-top: auto;
+  flex: 1; min-height: 120px; margin-top: 14px;
+  border-radius: 16px; overflow: hidden; background: #F6EEDF;
 }
 .stamp {
   position: absolute; right: 56px; top: 34px; transform: rotate(-8deg);
