@@ -1,0 +1,31 @@
+/* 형성평가·개념정리 공통 — 16:9 한 장(1920×1080 CSS px). render.py 가 배율을 곱해 PNG 로 찍는다. */
+:root {
+  --paper: #FBF4E6;
+  --card: #FFFFFF;
+  --ink: #2E2014;
+  --brown: #4A2F17;
+  --line: #E9D5AE;
+  --shadow: #EADCC0;
+  --accent: #E8743B;
+  --teal: #2F6E8E;
+  --answer: #D62828;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  width: 1920px; height: 1080px; overflow: hidden;
+  background: var(--paper);
+  font-family: 'Pretendard', 'Noto Sans KR', sans-serif;
+  color: var(--ink);
+  word-break: keep-all;
+}
+.page { height: 100%; padding: 40px 56px 44px; display: flex; flex-direction: column; }
+.ai-badge {
+  position: absolute; right: 8px; bottom: 8px;
+  font-size: 13px; font-weight: 600; color: #fff;
+  background: rgba(46, 32, 20, .55); padding: 2px 8px; border-radius: 8px;
+}
+.fig { position: relative; }
+.fig img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.fig.contain img { object-fit: contain; }
+.caption { font-size: 17px; color: #6B5843; margin-top: 6px; text-align: center; }
